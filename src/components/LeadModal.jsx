@@ -90,26 +90,29 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
   const handleSendChat = async () => {
     if (!chatText.trim() || !lead.chat_id) return
     setSendingMsg(true)
+    const textToSend = chatText.trim()
+    setChatText('')
     try {
-      // Bot server ga yuborish
+      // Supabase ga saqlash
+      const { data: savedMsg } = await supabase.from('messages').insert([{
+        lead_id: lead.id,
+        chat_id: lead.chat_id,
+        text: textToSend,
+        from_bot: true,
+        msg_type: 'text'
+      }]).select().single()
+      if (savedMsg) setMessages(prev => [...prev, savedMsg])
+
+      // Bot server orqali foydalanuvchiga yuborish
       const BOT_URL = import.meta.env.VITE_BOT_URL
       if (BOT_URL) {
         await fetch(`${BOT_URL}/send-message`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chat_id: lead.chat_id, text: chatText.trim() })
+          body: JSON.stringify({ chat_id: lead.chat_id, text: textToSend, lead_id: lead.id })
         })
       }
-      // Supabase ga saqlash
-      await supabase.from('messages').insert([{
-        lead_id: lead.id,
-        chat_id: lead.chat_id,
-        text: chatText.trim(),
-        from_bot: true,
-        msg_type: 'text'
-      }])
-      setChatText('')
-    } catch(e) { console.error(e) }
+    } catch(e) { console.error('Send xato:', e) }
     setSendingMsg(false)
   }
 
@@ -196,7 +199,7 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
                             {lead.name}
                           </div>
                         )}
-                        <div style={{ fontSize:13, lineHeight:1.5, whiteSpace:'pre-wrap' }}>{msg.text}</div>
+                        {msg.msg_type === 'photo' && msg.text && msg.text.startsWith('http') ? (<img src={msg.text} alt="chek" style={{ maxWidth:'100%', borderRadius:8, display:'block', marginBottom:4 }} />) : msg.msg_type === 'photo' ? (<div style={{ fontSize:13 }}>📸 Rasm</div>) : (<div style={{ fontSize:13, lineHeight:1.5, whiteSpace:'pre-wrap' }}>{msg.text}</div>)}
                         <div style={{ fontSize:10, opacity:0.7, marginTop:3, textAlign:'right' }}>
                           {timeStr(msg.created_at)}
                         </div>

@@ -1,149 +1,117 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import Board from './components/Board.jsx'
+import { useState, useEffect, useRef } from 'react'
+import LoginPage, { USERS } from './components/LoginPage.jsx'
 import Header from './components/Header.jsx'
-import SettingsModal from './components/SettingsModal.jsx'
+import Board from './components/Board.jsx'
+import AdminBoard from './components/AdminBoard.jsx'
 import LeadModal from './components/LeadModal.jsx'
+import SetupModal from './components/SetupModal.jsx'
+import { getLeads, updateLeadStage, assignLead, subscribeLeads } from './supabase.js'
 
-const WEBAPP_KEY = 'nargiza_webapp_url'
-const REFRESH_INTERVAL = 30000
-
-// Lokal (dev) da — to'g'ridan Apps Script ga
-// Vercel (prod) da — /api/sheets proxy orqali
-const IS_DEV = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-const DIRECT_URL = localStorage.getItem(WEBAPP_KEY) || ''
-
-async function apiRequest(params) {
-  const searchParams = new URLSearchParams({ ...params, t: Date.now() })
-
-  if (IS_DEV && DIRECT_URL) {
-    // Lokal: to'g'ridan Apps Script ga, redirect follow
-    const res = await fetch(`${DIRECT_URL}?${searchParams}`, {
-      method: 'GET',
-      redirect: 'follow',
-      cache: 'no-store',
-    })
-    const text = await res.text()
-    if (text.trim().startsWith('{')) return JSON.parse(text)
-    // 302 redirect — no-cors bilan yuborish (read emas, yozish uchun)
-    if (params.action !== 'list') {
-      await fetch(`${DIRECT_URL}?${searchParams}`, { method: 'GET', mode: 'no-cors' })
-      return { status: 'ok', fallback: true }
-    }
-    throw new Error('Apps Script redirect qaytardi. Yangi version deploy qiling.')
-  }
-
-  // Vercel prod: proxy orqali
-  const res = await fetch(`/api/sheets?${searchParams}`, {
-    method: 'GET',
-    cache: 'no-store',
-  })
-  return res.json()
-}
+const USER_KEY = 'nargiza_user_v2'
 
 export default function App() {
-  const [webAppUrl, setWebAppUrl] = useState(() => localStorage.getItem(WEBAPP_KEY) || '')
+  const [user, setUser] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem(USER_KEY)) } catch { return null }
+  })
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [showSettings, setShowSettings] = useState(!localStorage.getItem(WEBAPP_KEY))
   const [selectedLead, setSelectedLead] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [lastUpdated, setLastUpdated] = useState(null)
-  const [autoRefresh, setAutoRefresh] = useState(true)
-  const intervalRef = useRef(null)
-  // Pending moves: refresh bo'lsa ham saqlanadi
-  const pendingMoves = useRef({})
+  const [showSetup, setShowSetup] = useState(false)
+  const subRef = useRef(null)
 
-  const fetchLeads = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true)
-    setError('')
+  const handleLogin = (u) => {
+    setUser(u)
+    sessionStorage.setItem(USER_KEY, JSON.stringify(u))
+  }
+  const handleLogout = () => {
+    setUser(null); setLeads([])
+    sessionStorage.removeItem(USER_KEY)
+    subRef.current?.unsubscribe()
+  }
+
+  const fetchLeads = async () => {
+    setLoading(true); setError('')
     try {
-      const data = await apiRequest({ action: 'list' })
-      if (data.status === 'ok') {
-        const raw = data.leads || []
-        // Pending moves ni ustidan yoz
-        const merged = raw.map(l => {
-          const phone = getPhone(l.value)
-          const pending = phone && pendingMoves.current[cleanPhone(phone)]
-          return pending ? { ...l, stage: pending } : l
-        })
-        setLeads(merged)
-        setLastUpdated(new Date())
-        // Sheets da ham o'zgargan bo'lsa pending dan o'chir
-        raw.forEach(l => {
-          const phone = cleanPhone(getPhone(l.value))
-          if (phone && pendingMoves.current[phone] === l.stage) {
-            delete pendingMoves.current[phone]
-          }
-        })
-      } else {
-        setError(data.message || 'Xato yuz berdi')
-      }
-    } catch (e) {
-      if (!silent) setError('Server bilan ulanishda xato: ' + e.message)
+      const all = await getLeads()
+      setLeads(all)
+    } catch(e) {
+      setError('Supabase ulanish xatosi: ' + e.message)
     } finally {
-      if (!silent) setLoading(false)
+      setLoading(false)
     }
-  }, [])
+  }
 
+  // Real-time subscription
   useEffect(() => {
-    if (autoRefresh) {
-      intervalRef.current = setInterval(() => fetchLeads(true), REFRESH_INTERVAL)
-    }
-    return () => clearInterval(intervalRef.current)
-  }, [autoRefresh, fetchLeads])
-
-  useEffect(() => {
+    if (!user) return
     fetchLeads()
-  }, [])
 
-  const handleSaveUrl = (url) => {
-    setWebAppUrl(url)
-    localStorage.setItem(WEBAPP_KEY, url)
-    setShowSettings(false)
-    // Sahifani qayta yuklash — DIRECT_URL const ni yangilash uchun
-    window.location.reload()
-  }
+    // Real-time: yangi lid qo'shilsa, o'zgarsa, o'chsa — avtomatik yangilanadi
+    subRef.current = subscribeLeads(
+      (newLead) => setLeads(prev => [newLead, ...prev]),
+      (updated) => setLeads(prev => prev.map(l => l.id === updated.id ? updated : l)),
+      (deleted) => setLeads(prev => prev.filter(l => l.id !== deleted.id))
+    )
+    return () => subRef.current?.unsubscribe()
+  }, [user])
 
-  const handleMoveCard = async (phone, stage) => {
-    const clean = cleanPhone(phone)
-    // 1. Pending ga yoz
-    pendingMoves.current[clean] = stage
-    // 2. UI ni darhol yangilash
-    setLeads(prev => prev.map(l => {
-      const p = cleanPhone(getPhone(l.value))
-      return p && (p === clean || p.endsWith(clean.slice(-9))) ? { ...l, stage } : l
-    }))
-    // 3. Proxy orqali Sheets ga yubor
+  // Menejer: bosqich o'zgartirish
+  const handleMoveCard = async (leadId, stage) => {
+    // Optimistic update
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage } : l))
     try {
-      const res = await apiRequest({ action: 'move', phone, stage })
-      if (res.status === 'ok') {
-        delete pendingMoves.current[clean]
-      }
-    } catch (e) {
-      console.warn('Move xatosi:', e.message)
+      await updateLeadStage(leadId, stage)
+    } catch(e) {
+      setError('Saqlashda xato: ' + e.message)
+      fetchLeads() // rollback
     }
   }
 
-  const filteredLeads = searchQuery
-    ? leads.filter(l => l.value?.toLowerCase().includes(searchQuery.toLowerCase()))
-    : leads
+  // Admin: menejergа berish
+  const handleAssignLead = async (leadId, managerId) => {
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, assigned_to: managerId } : l))
+    try {
+      await assignLead(leadId, managerId)
+    } catch(e) {
+      setError('Berish xatosi: ' + e.message)
+      fetchLeads()
+    }
+  }
 
-  // Lokal dev da settings modal kerak (env var yo'q)
-  const needsSetup = !webAppUrl && import.meta.env.DEV
+  // Lid yangilanganda modal ni ham yangilash
+  useEffect(() => {
+    if (selectedLead) {
+      const updated = leads.find(l => l.id === selectedLead.id)
+      if (updated) setSelectedLead(updated)
+    }
+  }, [leads])
+
+  if (!user) return <LoginPage onLogin={handleLogin} />
+
+  // Filterlash: menejerlar faqat o'zlariga berilganlarni ko'radi
+  const visibleLeads = user.role === 'admin'
+    ? leads
+    : leads.filter(l => l.assigned_to === user.id)
+
+  const filtered = searchQuery
+    ? visibleLeads.filter(l =>
+        l.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        l.phone?.includes(searchQuery)
+      )
+    : visibleLeads
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden' }}>
       <Header
         loading={loading}
-        lastUpdated={lastUpdated}
-        searchQuery={searchQuery}
-        onSearch={setSearchQuery}
-        onRefresh={() => fetchLeads()}
-        onSettings={() => setShowSettings(true)}
-        totalLeads={leads.length}
-        autoRefresh={autoRefresh}
-        onToggleAutoRefresh={() => setAutoRefresh(v => !v)}
+        searchQuery={searchQuery} onSearch={setSearchQuery}
+        onRefresh={fetchLeads}
+        onSettings={() => setShowSetup(true)}
+        totalLeads={filtered.length}
+        user={user} onLogout={handleLogout}
+        isAdmin={user.role === 'admin'}
       />
 
       {error && (
@@ -154,40 +122,39 @@ export default function App() {
           display:'flex', alignItems:'center', gap:8
         }}>
           ⚠️ {error}
-          <button onClick={() => setError('')} style={{
-            marginLeft:'auto', background:'none', border:'none',
-            cursor:'pointer', color:'#92400E', fontSize:18
-          }}>×</button>
+          <button onClick={() => setError('')} style={{ marginLeft:'auto', background:'none', border:'none', cursor:'pointer', color:'#92400E', fontSize:18 }}>×</button>
         </div>
       )}
 
-      <Board
-        leads={filteredLeads}
-        loading={loading}
-        onMoveCard={handleMoveCard}
-        onSelectLead={setSelectedLead}
-      />
-
-      {(showSettings || needsSetup) && (
-        <SettingsModal
-          currentUrl={webAppUrl}
-          onSave={handleSaveUrl}
-          onClose={() => !needsSetup && setShowSettings(false)}
+      {user.role === 'admin' ? (
+        <AdminBoard
+          leads={filtered}
+          loading={loading}
+          onAssignLead={handleAssignLead}
+          onSelectLead={setSelectedLead}
+          managers={USERS.filter(u => u.role === 'manager')}
+        />
+      ) : (
+        <Board
+          leads={filtered}
+          loading={loading}
+          onMoveCard={handleMoveCard}
+          onSelectLead={setSelectedLead}
         />
       )}
+
       {selectedLead && (
-        <LeadModal lead={selectedLead} onClose={() => setSelectedLead(null)} onMove={handleMoveCard} />
+        <LeadModal
+          lead={selectedLead}
+          user={user}
+          onClose={() => setSelectedLead(null)}
+          onMove={handleMoveCard}
+          onAssign={handleAssignLead}
+          managers={USERS.filter(u => u.role === 'manager')}
+        />
       )}
+
+      {showSetup && <SetupModal onClose={() => setShowSetup(false)} />}
     </div>
   )
-}
-
-function getPhone(val) {
-  for (const l of (val || '').split('\n')) {
-    if (l.startsWith('Raqam:')) return l.replace('Raqam:', '').trim()
-  }
-  return ''
-}
-function cleanPhone(p) {
-  return (p || '').replace(/[\s+\-()]/g, '')
 }

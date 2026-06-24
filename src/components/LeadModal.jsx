@@ -25,8 +25,12 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
   const [movingTo, setMovingTo] = useState(null)
   const [tab, setTab] = useState('chat')
   const [amount, setAmount] = useState(lead.amount || '')
-  const [savingAmount, setSavingAmount] = useState(false)
-  const [amountSaved, setAmountSaved] = useState(false)
+  const [infoStage, setInfoStage] = useState(lead.stage)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  // Info da o'zgarish bormi?
+  const infoChanged = String(amount) !== String(lead.amount || '') || infoStage !== lead.stage
   const msgEndRef = useRef(null)
   const noteEndRef = useRef(null)
 
@@ -78,14 +82,19 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
     setMovingTo(null)
   }
 
-  const saveAmount = async () => {
-    setSavingAmount(true)
+  const saveInfo = async () => {
+    setSaving(true)
     try {
-      await supabase.from('leads').update({ amount: Number(amount) || 0 }).eq('id', lead.id)
-      setAmountSaved(true)
-      setTimeout(() => setAmountSaved(false), 2000)
+      await supabase.from('leads').update({
+        amount: Number(amount) || 0,
+        stage: infoStage
+      }).eq('id', lead.id)
+      // UI ni ham yangilash
+      if (infoStage !== lead.stage) await onMove(lead.id, infoStage)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
     } catch(e) { console.error(e) }
-    setSavingAmount(false)
+    setSaving(false)
   }
 
   const handleNote = async () => {
@@ -252,34 +261,35 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
 
           {/* ── INFO TAB ── */}
           {tab === 'info' && (
-            <div style={{ flex:1, overflowY:'auto', padding:'14px 20px' }}>
-              {/* Move stage */}
-              <div style={{ marginBottom:16 }}>
-                <div style={{ fontSize:12, color:'var(--text2)', marginBottom:8, fontWeight:600 }}>Bosqichni o'zgartirish</div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:5 }}>
+            <div style={{ flex:1, overflowY:'auto', padding:'14px 20px', display:'flex', flexDirection:'column', gap:16 }}>
+
+              {/* Bosqich — dropdown */}
+              <div>
+                <label style={{ fontSize:12, fontWeight:600, color:'var(--text2)', display:'block', marginBottom:6 }}>Bosqich</label>
+                <select
+                  value={infoStage}
+                  onChange={e => setInfoStage(e.target.value)}
+                  style={{
+                    width:'100%', padding:'9px 12px', fontSize:13,
+                    border:'1.5px solid var(--border)', borderRadius:10,
+                    background:'var(--surface2)', color:'var(--text)',
+                    cursor:'pointer', outline:'none', fontFamily:'inherit'
+                  }}
+                >
                   {STAGES.map(s => (
-                    <button key={s.key} onClick={() => handleMove(s.label)} disabled={!!movingTo} style={{
-                      padding:'4px 11px', borderRadius:20, fontSize:11, cursor:'pointer',
-                      border:`1px solid ${s.label===lead.stage ? s.border : 'var(--border)'}`,
-                      background: s.label===lead.stage ? s.bg : 'transparent',
-                      color: s.label===lead.stage ? s.border : 'var(--text2)',
-                      fontWeight: s.label===lead.stage ? 700 : 400,
-                      opacity: movingTo && movingTo!==s.label ? 0.5 : 1
-                    }}>
-                      {movingTo===s.label ? '...' : s.label}
-                    </button>
+                    <option key={s.key} value={s.label}>{s.label}</option>
                   ))}
-                </div>
+                </select>
               </div>
 
-              {/* Assign (admin only) */}
+              {/* Menejerga berish (admin only) */}
               {user.role === 'admin' && (
-                <div style={{ marginBottom:16 }}>
-                  <div style={{ fontSize:12, color:'var(--text2)', marginBottom:8, fontWeight:600 }}>Menejerga berish</div>
+                <div>
+                  <label style={{ fontSize:12, fontWeight:600, color:'var(--text2)', display:'block', marginBottom:6 }}>Menejerga berish</label>
                   <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                     {managers.map(m => (
                       <button key={m.id} onClick={() => onAssign(lead.id, m.id)} style={{
-                        padding:'5px 14px', borderRadius:20, fontSize:12, cursor:'pointer',
+                        padding:'6px 14px', borderRadius:20, fontSize:12, cursor:'pointer',
                         border:`1.5px solid ${lead.assigned_to===m.id ? m.color : 'var(--border)'}`,
                         background: lead.assigned_to===m.id ? m.color+'18' : 'var(--surface2)',
                         color: lead.assigned_to===m.id ? m.color : 'var(--text2)',
@@ -294,50 +304,48 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
                 </div>
               )}
 
-              {/* Summa kiritish */}
-              <div style={{ marginBottom:16 }}>
-                <div style={{ fontSize:12, color:'var(--text2)', marginBottom:8, fontWeight:600 }}>💰 Summa (so'm)</div>
-                <div style={{ display:'flex', gap:8 }}>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && saveAmount()}
-                    style={{
-                      flex:1, padding:'8px 12px',
-                      border:'1.5px solid var(--border)', borderRadius:10,
-                      background:'var(--surface2)', color:'var(--text)',
-                      fontSize:14, outline:'none', fontFamily:'inherit'
-                    }}
-                  />
-                  <button onClick={saveAmount} disabled={savingAmount} style={{
-                    padding:'8px 16px', borderRadius:10, border:'none',
-                    background: amountSaved ? '#059669' : '#7C3AED',
-                    color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', flexShrink:0
-                  }}>
-                    {savingAmount ? '...' : amountSaved ? '✓ Saqlandi' : 'Saqlash'}
-                  </button>
-                </div>
+              {/* Summa */}
+              <div>
+                <label style={{ fontSize:12, fontWeight:600, color:'var(--text2)', display:'block', marginBottom:6 }}>💰 Summa (so'm)</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                  style={{
+                    width:'100%', padding:'9px 12px',
+                    border:'1.5px solid var(--border)', borderRadius:10,
+                    background:'var(--surface2)', color:'var(--text)',
+                    fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box'
+                  }}
+                />
                 {amount > 0 && (
-                  <div style={{ fontSize:12, color:'#059669', marginTop:5, fontWeight:600 }}>
+                  <div style={{ fontSize:12, color:'#059669', marginTop:4, fontWeight:600 }}>
                     = {Number(amount).toLocaleString('uz-UZ')} so'm
                   </div>
                 )}
               </div>
 
-              {lead.phone && (
-                <a href={`https://wa.me/${lead.phone.replace(/[^0-9]/g,'')}`} target="_blank" rel="noreferrer" style={{
-                  display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-                  padding:'10px', background:'#25D366', color:'#fff',
-                  borderRadius:10, textDecoration:'none', fontSize:13, fontWeight:700
-                }}>💬 WhatsApp da yozish</a>
+              {/* Saqlash tugmasi — faqat o'zgarish bo'lsa */}
+              {infoChanged && (
+                <button onClick={saveInfo} disabled={saving} style={{
+                  width:'100%', padding:'11px',
+                  background: saved ? '#059669' : '#7C3AED',
+                  color:'#fff', border:'none', borderRadius:10,
+                  fontSize:14, fontWeight:700, cursor:'pointer',
+                  transition:'background .2s'
+                }}>
+                  {saving ? 'Saqlanmoqda...' : saved ? '✅ Saqlandi!' : 'Saqlash'}
+                </button>
               )}
-              <div style={{ marginTop:12, fontSize:11, color:'var(--text3)', textAlign:'center' }}>
+
+              {/* Qo'shilgan sana */}
+              <div style={{ fontSize:11, color:'var(--text3)', textAlign:'center' }}>
                 Qo'shilgan: {new Date(lead.created_at).toLocaleDateString('uz-UZ')}
               </div>
+
             </div>
-          )}
+                    )}
 
           {/* ── NOTES TAB ── */}
           {tab === 'notes' && (

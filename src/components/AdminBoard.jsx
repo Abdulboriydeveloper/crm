@@ -10,17 +10,37 @@ function normalizeStage(raw) {
 
 export default function AdminBoard({ leads, loading, onAssignLead, onSelectLead, managers }) {
   const [filter, setFilter] = useState('all')
+  const [stageFilters, setStageFilters] = useState(new Set()) // bosqich filterlari
   const [assigning, setAssigning] = useState(null)
-  const [selected, setSelected] = useState(new Set()) // tanlangan lid id lari
+  const [selected, setSelected] = useState(new Set())
   const [bulkManager, setBulkManager] = useState('')
   const [bulkAssigning, setBulkAssigning] = useState(false)
 
   const normalized = leads.map(l => ({ ...l, stage: normalizeStage(l.stage) }))
   const unassigned = normalized.filter(l => !l.assigned_to)
 
-  const filtered = filter === 'all' ? normalized
+  const byAssign = filter === 'all' ? normalized
     : filter === 'unassigned' ? unassigned
     : normalized.filter(l => l.assigned_to === filter)
+
+  // Bosqich filteri
+  const filtered = stageFilters.size === 0
+    ? byAssign
+    : byAssign.filter(l => stageFilters.has(l.stage))
+
+  const toggleStageFilter = (stage) => {
+    setStageFilters(prev => {
+      const next = new Set(prev)
+      next.has(stage) ? next.delete(stage) : next.add(stage)
+      return next
+    })
+    setSelected(new Set())
+  }
+
+  const clearStageFilter = () => {
+    setStageFilters(new Set())
+    setSelected(new Set())
+  }
 
   // Tanlash
   const toggleSelect = (id) => {
@@ -89,6 +109,47 @@ export default function AdminBoard({ leads, loading, onAssignLead, onSelectLead,
             color: filter===f.id ? f.color : 'var(--text2)', fontWeight: filter===f.id ? 700 : 400
           }}>{f.warn && '⚠️ '}{f.label}</button>
         ))}
+      </div>
+
+      {/* Bosqich filterlari */}
+      <div style={{
+        padding:'8px 16px', borderBottom:'1px solid var(--border)',
+        display:'flex', gap:6, flexShrink:0, flexWrap:'wrap', alignItems:'center',
+        background:'var(--surface)'
+      }}>
+        <span style={{ fontSize:11, color:'var(--text3)', marginRight:2, flexShrink:0 }}>Bosqich:</span>
+        <button
+          onClick={clearStageFilter}
+          style={{
+            padding:'3px 10px', borderRadius:20, fontSize:11, cursor:'pointer',
+            border: stageFilters.size === 0 ? '1.5px solid #7C3AED' : '1px solid var(--border)',
+            background: stageFilters.size === 0 ? '#EDE9FE' : 'var(--surface2)',
+            color: stageFilters.size === 0 ? '#7C3AED' : 'var(--text2)',
+            fontWeight: stageFilters.size === 0 ? 700 : 400
+          }}
+        >Hammasi</button>
+        {STAGES.map(s => {
+          const count = byAssign.filter(l => l.stage === s.label).length
+          const active = stageFilters.has(s.label)
+          return (
+            <button key={s.key} onClick={() => toggleStageFilter(s.label)} style={{
+              padding:'3px 10px', borderRadius:20, fontSize:11, cursor:'pointer',
+              border: active ? `1.5px solid ${s.border}` : '1px solid var(--border)',
+              background: active ? s.bg : 'var(--surface2)',
+              color: active ? s.border : 'var(--text2)',
+              fontWeight: active ? 700 : 400,
+              display:'flex', alignItems:'center', gap:4
+            }}>
+              {s.label}
+              <span style={{
+                fontSize:10, fontWeight:700,
+                background: active ? s.border : 'var(--border)',
+                color: active ? '#fff' : 'var(--text3)',
+                padding:'0px 5px', borderRadius:10, minWidth:16, textAlign:'center'
+              }}>{count}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Bulk action bar */}
@@ -161,7 +222,7 @@ export default function AdminBoard({ leads, loading, onAssignLead, onSelectLead,
         flex:1, overflowX:'auto', overflowY:'hidden',
         padding:'12px 16px 16px', display:'flex', gap:10, alignItems:'flex-start'
       }}>
-        {STAGES.map(stage => {
+        {STAGES.filter(stage => stageFilters.size === 0 || stageFilters.has(stage.label)).map(stage => {
           const cols = filtered.filter(l => l.stage === stage.label)
           return (
             <div key={stage.key} style={{

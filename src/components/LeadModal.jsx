@@ -320,7 +320,7 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
                         <div style={{ fontSize:10, fontWeight:700, color:isMe?'#7C3AED':'var(--text2)', marginBottom:2 }}>
                           {note.author} · {timeStr(note.created_at)}
                         </div>
-                        <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.5 }}>{note.text}</div>
+                        <div style={{ fontSize:12, color:'#000000', lineHeight:1.5 }}>{note.text}</div>
                       </div>
                     )
                   })}

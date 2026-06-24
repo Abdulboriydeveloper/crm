@@ -141,7 +141,6 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
   const tabs = [
     { id: 'chat', label: `💬 Chat (${messages.length})` },
     { id: 'info', label: "📋 Ma'lumot" },
-    { id: 'notes', label: `📝 Izohlar (${notes.length})` },
   ]
 
   return (
@@ -339,6 +338,55 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
                 </button>
               )}
 
+              {/* Izohlar */}
+              <div>
+                <div style={{ fontSize:12, fontWeight:600, color:'var(--text2)', marginBottom:8 }}>💬 Izohlar</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:8, maxHeight:180, overflowY:'auto' }}>
+                  {notes.length === 0 && (
+                    <div style={{ fontSize:12, color:'var(--text3)', textAlign:'center', padding:'12px 0' }}>Hali izoh yo'q</div>
+                  )}
+                  {notes.map(note => {
+                    const isMe = note.author === user.name
+                    return (
+                      <div key={note.id} style={{
+                        padding:'7px 10px', borderRadius:8,
+                        background: isMe ? '#EDE9FE' : 'var(--surface2)',
+                        border:`1px solid ${isMe ? '#C4B5FD' : 'var(--border)'}`,
+                        alignSelf: isMe ? 'flex-end' : 'flex-start',
+                        maxWidth:'90%'
+                      }}>
+                        <div style={{ fontSize:10, fontWeight:700, color: isMe?'#7C3AED':'var(--text2)', marginBottom:2 }}>
+                          {note.author} · {new Date(note.created_at).toLocaleTimeString('uz-UZ',{hour:'2-digit',minute:'2-digit'})}
+                        </div>
+                        <div style={{ fontSize:12, color:'var(--text)', lineHeight:1.5 }}>{note.text}</div>
+                      </div>
+                    )
+                  })}
+                  <div ref={noteEndRef}/>
+                </div>
+                <div style={{ display:'flex', gap:6 }}>
+                  <input
+                    type="text"
+                    placeholder="Izoh yozing... (Enter)"
+                    value={noteText}
+                    onChange={e => setNoteText(e.target.value)}
+                    onKeyDown={e => e.key==='Enter' && handleNote()}
+                    style={{
+                      flex:1, padding:'8px 10px',
+                      border:'1.5px solid var(--border)', borderRadius:8,
+                      background:'var(--surface2)', color:'var(--text)',
+                      fontSize:12, outline:'none', fontFamily:'inherit'
+                    }}
+                  />
+                  <button onClick={handleNote} disabled={!noteText.trim()||addingNote} style={{
+                    padding:'8px 12px', borderRadius:8, border:'none',
+                    background:!noteText.trim()?'var(--border2)':'#7C3AED',
+                    color:!noteText.trim()?'var(--text3)':'#fff',
+                    fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0
+                  }}>{addingNote?'...':'➤'}</button>
+                </div>
+              </div>
+
               {/* Qo'shilgan sana */}
               <div style={{ fontSize:11, color:'var(--text3)', textAlign:'center' }}>
                 Qo'shilgan: {new Date(lead.created_at).toLocaleDateString('uz-UZ')}
@@ -347,56 +395,6 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
             </div>
                     )}
 
-          {/* ── NOTES TAB ── */}
-          {tab === 'notes' && (
-            <>
-              <div style={{ flex:1, overflowY:'auto', padding:'12px 16px', display:'flex', flexDirection:'column', gap:8 }}>
-                {notes.length === 0 && (
-                  <div style={{ textAlign:'center', color:'var(--text3)', fontSize:13, padding:'24px 0' }}>Hali izoh yo'q</div>
-                )}
-                {notes.map(note => {
-                  const isMe = note.author === user.name
-                  return (
-                    <div key={note.id} style={{
-                      padding:'8px 12px', borderRadius:10,
-                      background: isMe ? '#EDE9FE' : 'var(--surface2)',
-                      border:`1px solid ${isMe ? '#C4B5FD' : 'var(--border)'}`,
-                      alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth:'85%'
-                    }}>
-                      <div style={{ fontSize:10, fontWeight:700, color: isMe ? '#7C3AED' : 'var(--text2)', marginBottom:3 }}>
-                        {note.author} · {timeStr(note.created_at)}
-                      </div>
-                      <div style={{ fontSize:13, color:'var(--text)', lineHeight:1.5 }}>{note.text}</div>
-                    </div>
-                  )
-                })}
-                <div ref={noteEndRef}/>
-              </div>
-              <div style={{ padding:'10px 16px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
-                <div style={{ display:'flex', gap:8 }}>
-                  <input
-                    type="text"
-                    placeholder="Izoh yozing... (Enter)"
-                    value={noteText}
-                    onChange={e => setNoteText(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleNote()}
-                    style={{
-                      flex:1, padding:'9px 12px', border:'1.5px solid var(--border)',
-                      borderRadius:10, background:'var(--surface2)',
-                      color:'var(--text)', fontSize:13, outline:'none', fontFamily:'inherit'
-                    }}
-                  />
-                  <button onClick={handleNote} disabled={!noteText.trim() || addingNote} style={{
-                    padding:'9px 16px', background: !noteText.trim() ? 'var(--border2)' : '#7C3AED',
-                    color: !noteText.trim() ? 'var(--text3)' : '#fff',
-                    border:'none', borderRadius:10, fontSize:13, fontWeight:700, cursor:'pointer'
-                  }}>
-                    {addingNote ? '...' : '➤'}
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </div>
     </div>

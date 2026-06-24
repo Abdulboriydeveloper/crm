@@ -241,7 +241,7 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
                 <select value={infoStage} onChange={e => setInfoStage(e.target.value)} style={{
                   width:'100%', padding:'8px 12px', fontSize:13,
                   border:'1.5px solid var(--border)', borderRadius:10,
-                  background:'var(--surface2)', color:'var(--text)',
+                  background:'var(--surface2)', color:'#000000',
                   cursor:'pointer', outline:'none', fontFamily:'inherit'
                 }}>
                   {STAGES.map(s => <option key={s.key} value={s.label}>{s.label}</option>)}

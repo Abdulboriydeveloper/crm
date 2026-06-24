@@ -2,9 +2,9 @@ export default function Header({ loading, searchQuery, onSearch, onRefresh, onSe
   return (
     <header style={{ background:'var(--surface)', borderBottom:'1px solid var(--border)', padding:'0 16px', height:56, display:'flex', alignItems:'center', gap:10, flexShrink:0, zIndex:10 }}>
       <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-        <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#7C3AED,#C026D3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>💄</div>
+        {/* <div style={{ width:32, height:32, borderRadius:8, background:'linear-gradient(135deg,#7C3AED,#C026D3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16 }}>💄</div> */}
         <div>
-          <div style={{ fontWeight:700, fontSize:13, lineHeight:1.2 }}>Nargiza CRM</div>
+          <div style={{ fontWeight:700, fontSize:13, lineHeight:1.2 }}>Elite CRM</div>
           <div style={{ fontSize:10, color:'var(--text3)', lineHeight:1.2 }}>{totalLeads} lid · {isAdmin ? '👑 Admin' : '👤 Menejer'}</div>
         </div>
       </div>

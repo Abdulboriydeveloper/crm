@@ -181,7 +181,7 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
                 return (
                   <div key={msg.id} style={{ display:'flex', justifyContent: isBot ? 'flex-end' : 'flex-start' }}>
                     <div style={{
-                      maxWidth:'80%', padding:'8px 12px',
+                      maxWidth:'40%', padding:'8px 12px',
                       borderRadius: isBot ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                       background: isBot ? '#7C3AED' : 'var(--surface2)',
                       color: isBot ? '#fff' : 'var(--text)',

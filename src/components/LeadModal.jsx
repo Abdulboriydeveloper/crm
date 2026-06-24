@@ -24,6 +24,9 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
   const [sendingMsg, setSendingMsg] = useState(false)
   const [movingTo, setMovingTo] = useState(null)
   const [tab, setTab] = useState('chat')
+  const [amount, setAmount] = useState(lead.amount || '')
+  const [savingAmount, setSavingAmount] = useState(false)
+  const [amountSaved, setAmountSaved] = useState(false)
   const msgEndRef = useRef(null)
   const noteEndRef = useRef(null)
 
@@ -73,6 +76,16 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
     setMovingTo(stage)
     await onMove(lead.id, stage)
     setMovingTo(null)
+  }
+
+  const saveAmount = async () => {
+    setSavingAmount(true)
+    try {
+      await supabase.from('leads').update({ amount: Number(amount) || 0 }).eq('id', lead.id)
+      setAmountSaved(true)
+      setTimeout(() => setAmountSaved(false), 2000)
+    } catch(e) { console.error(e) }
+    setSavingAmount(false)
   }
 
   const handleNote = async () => {
@@ -280,6 +293,38 @@ export default function LeadModal({ lead, user, onClose, onMove, onAssign, manag
                   </div>
                 </div>
               )}
+
+              {/* Summa kiritish */}
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:12, color:'var(--text2)', marginBottom:8, fontWeight:600 }}>💰 Summa (so'm)</div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={amount}
+                    onChange={e => setAmount(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && saveAmount()}
+                    style={{
+                      flex:1, padding:'8px 12px',
+                      border:'1.5px solid var(--border)', borderRadius:10,
+                      background:'var(--surface2)', color:'var(--text)',
+                      fontSize:14, outline:'none', fontFamily:'inherit'
+                    }}
+                  />
+                  <button onClick={saveAmount} disabled={savingAmount} style={{
+                    padding:'8px 16px', borderRadius:10, border:'none',
+                    background: amountSaved ? '#059669' : '#7C3AED',
+                    color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', flexShrink:0
+                  }}>
+                    {savingAmount ? '...' : amountSaved ? '✓ Saqlandi' : 'Saqlash'}
+                  </button>
+                </div>
+                {amount > 0 && (
+                  <div style={{ fontSize:12, color:'#059669', marginTop:5, fontWeight:600 }}>
+                    = {Number(amount).toLocaleString('uz-UZ')} so'm
+                  </div>
+                )}
+              </div>
 
               {lead.phone && (
                 <a href={`https://wa.me/${lead.phone.replace(/[^0-9]/g,'')}`} target="_blank" rel="noreferrer" style={{

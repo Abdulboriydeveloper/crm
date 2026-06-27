@@ -5,7 +5,9 @@ import Board from './components/Board.jsx'
 import AdminBoard from './components/AdminBoard.jsx'
 import LeadModal from './components/LeadModal.jsx'
 import SetupModal from './components/SetupModal.jsx'
-import { getLeads, updateLeadStage, assignLead, subscribeLeads } from './supabase.js'
+import AddLeadModal from './components/AddLeadModal.jsx'
+import { getLeads, updateLeadStage, assignLead, subscribeLeads, createLead } from './supabase.js'
+import { usePresence, getOnlineUsers } from './hooks/usePresence.js'
 
 const USER_KEY = 'nargiza_user_v2'
 
@@ -19,7 +21,9 @@ export default function App() {
   const [selectedLead, setSelectedLead] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [showSetup, setShowSetup] = useState(false)
+  const [showAddLead, setShowAddLead] = useState(false)
   const subRef = useRef(null)
+  const [onlineUsers, setOnlineUsers] = useState([])
 
   const handleLogin = (u) => {
     setUser(u)
@@ -44,9 +48,20 @@ export default function App() {
   }
 
   // Real-time subscription
+  // Presence - bu user online ekanligini bildiradi
+  usePresence(user)
+
   useEffect(() => {
     if (!user) return
     fetchLeads()
+
+    // Online users ni yuklash va real-time kuzatish
+    const loadOnline = async () => {
+      const users = await getOnlineUsers()
+      setOnlineUsers(users)
+    }
+    loadOnline()
+    const onlineInterval = setInterval(loadOnline, 15000)
 
     // Real-time: yangi lid qo'shilsa, o'zgarsa, o'chsa — avtomatik yangilanadi
     subRef.current = subscribeLeads(
@@ -54,7 +69,10 @@ export default function App() {
       (updated) => setLeads(prev => prev.map(l => l.id === updated.id ? updated : l)),
       (deleted) => setLeads(prev => prev.filter(l => l.id !== deleted.id))
     )
-    return () => subRef.current?.unsubscribe()
+    return () => {
+      subRef.current?.unsubscribe()
+      clearInterval(onlineInterval)
+    }
   }, [user])
 
   // Menejer: bosqich o'zgartirish
@@ -70,6 +88,13 @@ export default function App() {
   }
 
   // Admin: menejergа berish
+  const handleAddLead = async ({ name, phone, stage }) => {
+    // Admin qo'shsa assigned_to yo'q, menejer qo'shsa o'ziga
+    const assigned_to = user.role === 'manager' ? user.id : null
+    const newLead = await createLead({ name, phone, stage, assigned_to })
+    if (newLead) setLeads(prev => [newLead, ...prev])
+  }
+
   const handleAssignLead = async (leadId, managerId) => {
     setLeads(prev => prev.map(l => l.id === leadId ? { ...l, assigned_to: managerId } : l))
     try {
@@ -109,9 +134,12 @@ export default function App() {
         searchQuery={searchQuery} onSearch={setSearchQuery}
         onRefresh={fetchLeads}
         onSettings={() => setShowSetup(true)}
+        onAddLead={() => setShowAddLead(true)}
         totalLeads={filtered.length}
         user={user} onLogout={handleLogout}
         isAdmin={user.role === 'admin'}
+        onlineUsers={onlineUsers}
+        managers={USERS.filter(u => u.role === 'manager')}
       />
 
       {error && (
@@ -133,6 +161,7 @@ export default function App() {
           onAssignLead={handleAssignLead}
           onSelectLead={setSelectedLead}
           managers={USERS.filter(u => u.role === 'manager')}
+          onlineUsers={onlineUsers}
         />
       ) : (
         <Board
@@ -155,6 +184,13 @@ export default function App() {
       )}
 
       {showSetup && <SetupModal onClose={() => setShowSetup(false)} />}
+      {showAddLead && (
+        <AddLeadModal
+          onClose={() => setShowAddLead(false)}
+          onAdd={handleAddLead}
+          currentUser={user}
+        />
+      )}
     </div>
   )
 }

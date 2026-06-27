@@ -17,6 +17,13 @@ export default function Header({ loading, searchQuery, onSearch, onRefresh, onSe
       </div>
 
       <div style={{ marginLeft:'auto', display:'flex', gap:6, alignItems:'center' }}>
+        {/* Yangi lid */}
+        <button onClick={onAddLead} style={{
+          padding:'5px 14px', borderRadius:8, border:'none',
+          background:'#7C3AED', color:'#fff', fontSize:12, fontWeight:700,
+          cursor:'pointer', display:'flex', alignItems:'center', gap:4
+        }}>➕ Yangi lid</button>
+
         <button onClick={onRefresh} disabled={loading} style={{ padding:'5px 12px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text2)', fontSize:12, cursor:'pointer', opacity:loading?0.6:1 }}>
           <span style={{ display:'inline-block', animation:loading?'spin 0.7s linear infinite':'none' }}>↻</span> Yangilash
         </button>
